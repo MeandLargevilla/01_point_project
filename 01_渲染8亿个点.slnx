@@ -1,0 +1,8 @@
+<Solution>
+  <Configurations>
+    <Platform Name="ARM64" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="01_渲染8亿个点.vcxproj" Id="11cd999e-3e57-41b5-8571-af0be55eefff" />
+</Solution>
