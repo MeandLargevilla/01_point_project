@@ -18,10 +18,32 @@
     <ClCompile Include="01_渲染8亿个点.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="3rdparty\glad\src\glad.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DataModel.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="3rdparty\glfw\include\GLFW\glfw3.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdparty\glfw\include\GLFW\glfw3native.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdparty\glad\include\glad.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdparty\glad\include\glad\gl.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdparty\glad\include\KHR\khrplatform.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="3rdparty\GladGlfw.props" />
+    <None Include="3rdparty\README.md" />
   </ItemGroup>
 </Project>
