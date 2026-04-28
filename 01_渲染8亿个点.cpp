@@ -19,25 +19,26 @@ const char* fragmentShaderSource = "#version 330 core\n"
 
 //顶点着色器
 const char* vertexShaderSource = "#version 330 core\n"
-"layout (location = 0) in vec3 aPos;\n" // 读入 0 号属性（坐标）
+"layout (location = 0) in vec2 rawData;\n"  // 仅仅读入文件里的 2 个原始 float
+"uniform float t_y;\n"                      // CPU 传进来的变量
+"uniform float t_z;\n"
 "void main()\n"
 "{\n"
-"   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n" // 确定点在 3D 空间的位置
-"}\0";
+"   int i = gl_VertexID;\n"                 // 拿到当前顶点的序号
+	// 计算坐标：根据序号算出 x, y, z
+    "   float x = float(i / int(t_y * t_z));\n"
+    "   float y = float(i % int(t_y));\n"
+    "   float z = float(i / int(t_y) % int(t_z));\n"
+
+    // 最终告诉显卡：这就是坐标！
+    "   gl_Position = vec4(x*0.1, y*0.1, z*0.1, 1.0);\n"
+    "}\0";
 
 int main() {
-    //创建point结构体的vector
-    std::vector<point> pts = creatpoints(count);
+    //创建float的vector
+    std::vector<float> mms = creatmm(count);
     //输出全部点
-    std::cout << "我拿到了" << pts.size() << "个点\n";
-    for (const auto& p : pts) std::cout << p << "\n ";
-
-
-
-
-
-
-
+    std::cout << "我拿到了" << mms.size() / 2 << "个点\n";
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -72,22 +73,31 @@ int main() {
 
     // 搬运：把 vector 里的数据复制到显卡
     glBufferData(GL_ARRAY_BUFFER,
-        pts.size() * sizeof(point), // 总字节数：点数 * 每个点的大小
-        pts.data(),                // 数据真正的开头位置
+        mms.size() * sizeof(float), // 总字节数：点数 * 每个点的大小
+        mms.data(),                // 数据真正的开头位置
         GL_STATIC_DRAW);                 // 告诉显卡：这些点我不打算常改，请优化读取速度
 
-    // 告诉显卡：0 号属性是坐标
+    // 告诉显卡：0 号属性
     glVertexAttribPointer(
         0,                  // 编号：对应以后 Shader 里的 location = 0
-        3,                  // 数量：坐标有 3 个数 (x, y, z)
+        1,                  // 数量：m1
         GL_FLOAT,           // 类型：都是 float
         GL_TRUE,           // 是否归一化：是
-        5 * sizeof(float),  // 步长 (Stride)：每隔 5 个 float 读下一个点
+        2* sizeof(float),  // 步长 (Stride)：每隔 2个 float 读下一个点
         (void*)0            // 偏移 (Offset)：坐标从每个点的第 0 个位置开始读
+    );
+    glVertexAttribPointer(
+        1,                  // 编号：对应以后 Shader 里的 location = 1
+        1,                  // 数量：m2
+        GL_FLOAT,           // 类型：都是 float
+        GL_TRUE,           // 是否归一化：是
+        2 * sizeof(float),  // 步长 (Stride)：每隔 2 个 float 读下一个点
+        (void*)(sizeof(float)*1)           // 偏移 (Offset)：坐标从第一个float数据后开始读
     );
 
     // 启用这个 0 号属性
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
 
     // 1. 创建并编译顶点着色器
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -114,6 +124,14 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(shaderProgram);
+        // 获取变量在 Shader 中的“地址”
+        GLint tyLoc = glGetUniformLocation(shaderProgram, "t_y");
+        GLint tzLoc = glGetUniformLocation(shaderProgram, "t_z");
+
+        // 传入你之前定义好的 t_y 和 t_z 的值 (假设它们是 float)
+        glUniform1f(tyLoc, t_y);
+        glUniform1f(tzLoc, t_z); 
+
         // 1. 绑定你的说明书
         glBindVertexArray(VAO);
 
@@ -122,7 +140,7 @@ int main() {
 
         // 3. 命令显卡：画！
         // 格式：glDrawArrays(形状, 开始位置, 点的数量);
-        glDrawArrays(GL_POINTS, 0, (GLsizei)pts.size());
+        glDrawArrays(GL_POINTS, 0, (GLsizei)(mms.size() / 2));
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

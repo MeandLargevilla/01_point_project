@@ -2,7 +2,7 @@
 #include<iostream>
 #include <vector>
 #include"common.h"
-static std::vector<float> creatmm(int n);
+std::vector<float> creatmm(int n);
 
 //创建一个函数，生成点
 std::vector<point> creatpoints(int n);
