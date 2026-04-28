@@ -33,3 +33,4 @@ std::vector<point> creatpoints(int n)
     }
     return pointres;
 }
+

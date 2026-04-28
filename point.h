@@ -1,6 +1,7 @@
 #pragma once
 #include<iostream>
 #include <vector>
+#include <windows.h>
 #include"common.h"
 std::vector<float> creatmm(int n);
 
