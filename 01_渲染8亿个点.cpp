@@ -1,6 +1,9 @@
 ﻿#include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include"common.h"
 #include"point.h"
 //point生成个数
@@ -22,6 +25,7 @@ const char* vertexShaderSource = "#version 330 core\n"
 "layout (location = 0) in vec2 rawData;\n"  // 仅仅读入文件里的 2 个原始 float
 "uniform float t_y;\n"                      // CPU 传进来的变量
 "uniform float t_z;\n"
+"uniform mat4 mvp;\n"
 "void main()\n"
 "{\n"
 "   int i = gl_VertexID;\n"                 // 拿到当前顶点的序号
@@ -31,7 +35,7 @@ const char* vertexShaderSource = "#version 330 core\n"
     "   float z = float(i / int(t_y) % int(t_z));\n"
 
     // 最终告诉显卡：这就是坐标！
-    "   gl_Position = vec4(x*0.1, y*0.1, z*0.1, 1.0);\n"
+    "   gl_Position = mvp * vec4(x*0.1, y*0.1, z*0.1, 1.0);\n"
     "}\0";
 
 int main() {
@@ -124,6 +128,22 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(shaderProgram);
+        // 1. 算出投影矩阵 (P) - 45度视角，800/600宽高比，0.1到100的可视距离
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+
+        // 2. 算出视图矩阵 (V) - 相机在 (0,0,3)，看原点 (0,0,0)
+        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+        // 3. 算出模型矩阵 (M) - 随时间旋转
+        glm::mat4 model = glm::rotate(glm::mat4(1.0f), (float)glfwGetTime(), glm::vec3(0.0f, 1.0f, 0.0f));
+
+        // 4. 算出最终的 MVP
+        glm::mat4 mvp = projection * view * model;
+
+        // 5. [核心格式] 找到 Shader 里的接口并把矩阵传过去
+        unsigned int mvpLoc = glGetUniformLocation(shaderProgram, "mvp");
+        glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+        
         // 获取变量在 Shader 中的“地址”
         GLint tyLoc = glGetUniformLocation(shaderProgram, "t_y");
         GLint tzLoc = glGetUniformLocation(shaderProgram, "t_z");
