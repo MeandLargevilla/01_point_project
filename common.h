@@ -4,7 +4,7 @@
 // ===== 常量 =====
 constexpr int t_y = 10;
 constexpr int t_z = 10;
-
+constexpr int colorSelect = 0;// 0: m1, 1: m2
 // ===== 结构体 =====
 struct point {
 	float x, y, z;

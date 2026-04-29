@@ -4,7 +4,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include"common.h"
-#include"point.h"
+#include<iostream>
+#include<windows.h>
+#include<vector>
+//归一化处理需要找到的最大值与最小值
+double m1Max = -DBL_MAX, m1Min = DBL_MAX;
+double m2Max = -DBL_MAX, m2Min = DBL_MAX;
 //point生成个数
 #define count 1000
 //point结构体输出函数
@@ -24,13 +29,37 @@ long long loadHugeDataToGPU(const std::string& filePath, unsigned int vbo) {
 
     // 3. 内存映射 (Memory Mapping)
     HANDLE hMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+    if (hMapping == NULL) {
+        std::cerr << "创建文件映射失败！错误代码: " << GetLastError() << std::endl;
+        CloseHandle(hFile); // 失败时关闭文件句柄，防止资源泄漏
+        return 0;           // 返回 0 表示点数为 0
+    }
     double* pData = (double*)MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0);
+    if (pData == NULL) {
+        std::cerr << "映射文件视图失败！错误代码: " << GetLastError() << std::endl;
+        CloseHandle(hMapping);
+        CloseHandle(hFile);
+        return 0;
+    }
+    // 4. 扫描数据找到 m1 和 m2 的最大最小值
+    for (long long i = 0; i < totalCount; i += 2) {
+        // 假设索引 i 是 m1，i+1 是 m2
+        double val1 = pData[i];
+        double val2 = pData[i + 1];
 
-    // 4. 预分配显存
+        if (val1 > m1Max) m1Max = val1;
+        if (val1 < m1Min) m1Min = val1;
+
+        if (val2 > m2Max) m2Max = val2;
+        if (val2 < m2Min) m2Min = val2;
+    }
+	std::cout << "m1Max: " << m1Max << ", m1Min: " << m1Min << std::endl;
+	std::cout << "m2Max: " << m2Max << ", m2Min: " << m2Min << std::endl;
+    // 5. 预分配显存
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, totalCount * sizeof(float), NULL, GL_STATIC_DRAW);
 
-    // 5. 分块转换并上传 (Chunking)
+    // 6. 分块转换并上传 (Chunking)
     const int chunkSize = 1000000;
     std::vector<float> tempBuffer(chunkSize);
     for (long long i = 0; i < totalCount; i += chunkSize) {
@@ -41,7 +70,7 @@ long long loadHugeDataToGPU(const std::string& filePath, unsigned int vbo) {
         glBufferSubData(GL_ARRAY_BUFFER, i * sizeof(float), currentBatch * sizeof(float), tempBuffer.data());
     }
 
-    // 6. 清理
+    // 7. 清理
     UnmapViewOfFile(pData);
     CloseHandle(hMapping);
     CloseHandle(hFile);
@@ -50,26 +79,39 @@ long long loadHugeDataToGPU(const std::string& filePath, unsigned int vbo) {
 }
 //片段着色器
 const char* fragmentShaderSource = "#version 330 core\n"
+"in float vData;\n" // 从顶点着色器传来的变量
 "out vec4 FragColor;\n" // 输出最终颜色
 "void main()\n"
 "{\n"
-"   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f); // 暂时统一涂成橘黄色\n"
+"   float checker = mod(floor(vData * 10.0), 2.0);\n"
+   "FragColor = vec4(vec3(checker), 1.0);\n"
 "}\n\0";
 
 //顶点着色器
 const char* vertexShaderSource = "#version 330 core\n"
-"layout (location = 0) in vec2 rawData;\n"  // 仅仅读入文件里的 2 个原始 float
+"layout (location = 0) in float m1;\n" // 仅仅读入文件里的 2 个原始 float
+"layout (location = 1) in float m2;\n"
+"uniform int colorSelect;\n"
 "uniform float t_y;\n"                      // CPU 传进来的变量
 "uniform float t_z;\n"
+"uniform float m1Max;\n"
+"uniform float m1Min;\n"
+"uniform float m2Max;\n"
+"uniform float m2Min;\n"
 "uniform mat4 mvp;\n"
+"out float vData;\n" // 传给片段着色器的变量
 "void main()\n"
 "{\n"
-"   int i = gl_VertexID;\n"                 // 拿到当前顶点的序号
-	// 计算坐标：根据序号算出 x, y, z
+"   int i = gl_VertexID;\n"            // 拿到当前顶点的序号
+    // 计算坐标：根据序号算出 x, y, z
     "   float x = float(i / int(t_y * t_z));\n"
     "   float y = float(i % int(t_y));\n"
     "   float z = float(i / int(t_y) % int(t_z));\n"
-
+    "    // 根据选择开关赋值\n"
+    "if (colorSelect == 0) {vData = (m1 - m1Min) / (m1Max - m1Min);}\n"// 对 m1 进行归一化
+    "else { vData = (m2 - m2Min) / (m2Max - m2Min); }\n" // 对 m2 进行归一化
+    // 限制范围在 0-1，防止数据异常导致颜色爆表
+    "vData = clamp(vData, 0.0, 1.0);\n"
     // 最终告诉显卡：这就是坐标！
     "   gl_Position = mvp * vec4(x*0.1, y*0.1, z*0.1, 1.0);\n"
     "}\0";
@@ -110,13 +152,8 @@ int main() {
 
     // 绑定仓库
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    long long pointCount = loadHugeDataToGPU("datawan.bin", VBO);
-    // 搬运：把 vector 里的数据复制到显卡
-    glBufferData(GL_ARRAY_BUFFER,
-        pointCount * sizeof(float), // 总字节数：点数 * 每个点的大小
-        NULL,                // 数据真正的开头位置
-        GL_STATIC_DRAW);         // 告诉显卡：这些点我不打算常改，请优化读取速度
-
+    long long pointCount = loadHugeDataToGPU("C:\\Users\\user\\Desktop\\result.bin", VBO);
+ 
     // 告诉显卡：0 号属性
     glVertexAttribPointer(
         0,                  // 编号：对应以后 Shader 里的 location = 0
@@ -164,6 +201,8 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         glUseProgram(shaderProgram);
+        GLint selLoc = glGetUniformLocation(shaderProgram, "colorSelect");
+        glUniform1i(selLoc, colorSelect);
         // 1. 算出投影矩阵 (P) - 45度视角，800/600宽高比，0.1到100的可视距离
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
 
@@ -183,10 +222,19 @@ int main() {
         // 获取变量在 Shader 中的“地址”
         GLint tyLoc = glGetUniformLocation(shaderProgram, "t_y");
         GLint tzLoc = glGetUniformLocation(shaderProgram, "t_z");
+        GLint m1maxLoc = glGetUniformLocation(shaderProgram, "m1Max");
+        GLint m1minLoc = glGetUniformLocation(shaderProgram, "m1Min");
+        GLint m2maxLoc = glGetUniformLocation(shaderProgram, "m2Max");
+        GLint m2minLoc = glGetUniformLocation(shaderProgram, "m2Min");
 
-        // 传入你之前定义好的 t_y 和 t_z 的值 (假设它们是 float)
+        // 传入你之前定义好的 t_y 和 t_z 的值 和最大最小值
         glUniform1f(tyLoc, t_y);
         glUniform1f(tzLoc, t_z); 
+        glUniform1f(m1maxLoc, m1Max);
+        glUniform1f(m1minLoc, m1Min);
+        glUniform1f(m2maxLoc, m2Max);
+        glUniform1f(m2minLoc, m2Min);
+        
 
         // 1. 绑定你的说明书
         glBindVertexArray(VAO);

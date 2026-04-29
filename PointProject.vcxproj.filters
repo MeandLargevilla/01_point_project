@@ -21,9 +21,6 @@
     <ClCompile Include="3rdparty\glad\src\glad.c">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="point.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h">
@@ -42,9 +39,6 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="3rdparty\glad\include\KHR\khrplatform.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="point.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
